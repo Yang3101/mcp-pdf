@@ -62,7 +62,6 @@ async def handle_call_tool(
 # 启动主函数
 async def main():
     # Run the server using stdin/stdout streams
-    print("Hello")
     async with mcp.server.stdio.stdio_server() as (read_stream, write_stream):
         await server.run(
             read_stream,
