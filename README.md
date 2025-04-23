@@ -1,16 +1,32 @@
-# PDF Extraction MCP server
+# PDF Extraction MCP Server
 
-MCP server to extract contents from a PDF file
+MCP server to extract contents from a PDF file (local or via URL).
 
 ## Components
 
 ### Tools
 
-The server implements one tool:
-- extract-pdf-contents: Extract contents from a local PDF file
-  - Takes "pdf_path" as a required string argument, representing the local file path of the PDF file
-  - Takes "pages" as an optional string argument, representing the page numbers to extract contents from the PDF file. Page numbers are separated in comma, and negative page numbers supported (e.g. '-1' means the last page)
-  - Supports PDF file reader and OCR
+The server implements the following tools:
+
+#### 1. `extract-pdf-contents`
+Extract contents from a **local PDF file**.
+- **Arguments**:
+  - `"pdf_path"` (required): Local file path of the PDF.
+  - `"pages"` (optional): Comma-separated page numbers to extract (e.g. `"1,2,5"`). Supports negative indexing (e.g. `-1` means the last page).
+- **Features**:
+  - Direct PDF text extraction
+  - OCR fallback for image-based pages
+
+#### 2. `extract-pdf-from-url`
+Download a **PDF from a URL** and extract contents.
+- **Arguments**:
+  - `"pdf_url"` (required): URL of the PDF file.
+  - `"pages"` (optional): Comma-separated page numbers to extract. Supports negative indexing.
+- **Features**:
+  - Automatically downloads and processes PDF from the internet
+  - Same text extraction capabilities as the local file tool
+
+---
 
 ## Quickstart
 
@@ -18,12 +34,16 @@ The server implements one tool:
 
 #### Claude Desktop
 
-On MacOS: `~/Library/Application\ Support/Claude/claude_desktop_config.json`
-On Windows: `%APPDATA%/Claude/claude_desktop_config.json`
+##### On macOS:
+`~/Library/Application\ Support/Claude/claude_desktop_config.json`
+
+##### On Windows:
+`%APPDATA%/Claude/claude_desktop_config.json`
 
 <details>
   <summary>Development/Unpublished Servers Configuration</summary>
-  ```
+
+  ```json
   "mcpServers": {
     "pdf_extraction": {
       "command": "uv",
@@ -36,18 +56,18 @@ On Windows: `%APPDATA%/Claude/claude_desktop_config.json`
     }
   }
   ```
-</details>
+</details> 
 
-<details>
+<details> 
   <summary>Published Servers Configuration</summary>
-  ```
-  "mcpServers": {
-    "pdf_extraction": {
-      "command": "uvx",
-      "args": [
-        "pdf_extraction"
-      ]
-    }
+  ```json
+"mcpServers": {
+  "pdf_extraction": {
+    "command": "uvx",
+    "args": [
+      "pdf_extraction"
+    ]
   }
+}
   ```
 </details>
