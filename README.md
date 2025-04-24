@@ -1,57 +1,75 @@
-# PDF Extraction MCP Server
+# 📄 PDF Extraction & Indexing MCP Plugin
 
-An MCP-compatible server to extract, index, and semantically search content from PDF files (local or from a URL) using **OpenAI embeddings** and **FAISS vector search**.
+This is an MCP-compatible plugin for extracting text from PDFs, indexing content into a vector store (FAISS), and querying with natural language. Now includes automatic summarization of each indexed document.
 
-## Features
+## ✨ Features
 
-- Extracts and indexes PDF content (supports local files and remote URLs).
-- Semantic search over extracted content using `text-embedding-ada-002`.
-- OCR fallback for scanned/image-based PDFs (if implemented in `PDFExtractor`).
-- Uses LangChain, FAISS, and OpenAI's embedding API.
-- Fully compatible with Claude Desktop via MCP.
+- Extract text from local or remote (URL) PDFs.
+- Automatically summarize the content during indexing.
+- Store and query content via FAISS vector search using OpenAI embeddings.
+- Retrieve relevant text chunks or full-document summaries.
+- Optionally filter by file path or URL when querying.
 
----
+## 🧰 Available Tools
 
-## 🔧 Tools
+### `extract-pdf-contents`
 
-### 1. `extract-pdf-contents`
+Extract and index content from a **local** PDF file.
 
-Extract and index contents from a **local PDF file**.
-
-- **Arguments**:
-  - `"pdf_path"` (required): Local path to the PDF file.
-  - `"pages"` (optional): Comma-separated page numbers (e.g., `"1,2,5"`). Negative indexing supported (e.g., `-1` for the last page).
-- **Features**:
-  - Fast local PDF parsing
-  - Semantic indexing for query support
-  - OCR fallback (if supported by your `PDFExtractor`)
-
----
-
-### 2. `extract-pdf-from-url`
-
-Download, extract, and index contents from a **PDF URL**.
-
-- **Arguments**:
-  - `"pdf_url"` (required): URL pointing to a PDF file.
-  - `"pages"` (optional): Comma-separated page numbers to extract. Negative indexing supported.
-- **Features**:
-  - Downloads and temporarily stores PDF
-  - Supports same extraction/indexing pipeline as local tool
+- **Input**:
+  ```json
+  {
+    "pdf_path": "path/to/file.pdf",
+    "pages": "1,2,3" // Optional: comma-separated page numbers
+  }
+  ```
+- **Output**: Confirmation message on successful indexing and summarization.
 
 ---
 
-### 3. `query-indexed-pdf`
+### `extract-pdf-from-url`
 
-Query a previously indexed PDF with a semantic search prompt.
+Download, extract, and index content from a **remote PDF**.
 
-- **Arguments**:
-  - `"query"` (required): Natural language query to retrieve relevant chunks.
-- **Features**:
-  - Uses FAISS + OpenAI embeddings to find semantically similar content
-  - Returns top-5 matched chunks
+- **Input**:
+  ```json
+  {
+    "pdf_url": "https://example.com/file.pdf",
+    "pages": "1-3,5" // Optional
+  }
+  ```
+- **Output**: Confirmation message on successful indexing and summarization.
 
 ---
+
+### `query-indexed-pdf`
+
+Query the indexed PDF content and return relevant text chunks.
+
+- **Input**:
+  ```json
+  {
+    "query": "What are the main findings?",
+    "pdf_path": "path/to/file.pdf",   // Optional
+    "pdf_url": "https://example.com/file.pdf" // Optional
+  }
+  ```
+- **Output**: Up to 5 relevant chunks of text from the indexed document.
+
+---
+
+### `full-text-summary`
+
+Return the **summary** generated for a previously indexed PDF.
+
+- **Input**:
+  ```json
+  {
+    "pdf_path": "path/to/file.pdf" // or
+    "pdf_url": "https://example.com/file.pdf"
+  }
+  ```
+- **Output**: Generated summary string from document metadata.
 
 ## 🚀 Quickstart
 
