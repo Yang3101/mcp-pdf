@@ -124,7 +124,7 @@ async def handle_call_tool(name: str, arguments: dict | None) -> list[types.Text
             raise ValueError("No indexed PDF content available")
 
         docs = faiss_index.similarity_search(query, k=5)
-        return [types.TextContent(type="text", text=doc.page_content) for doc in docs]
+        return [types.TextContent(type="text", text="\n\n".join([doc.page_content for doc in docs]))]
 
     else:
         raise ValueError(f"Unknown tool: {name}")
