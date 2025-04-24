@@ -10,6 +10,9 @@ from langchain.embeddings import OpenAIEmbeddings
 from langchain.vectorstores import FAISS
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.docstore.document import Document
+from langchain.prompts import PromptTemplate
+from langchain.chains import LLMChain
+from langchain.llms import OpenAI
 
 # MCP Server
 server = Server("pdf_extraction")
@@ -23,18 +26,37 @@ node_env = os.getenv("NODE_ENV", "development")
 os.environ["OPENAI_API_KEY"] = "sk-proj-1234567890"
 os.environ["OPENAI_API_BASE"] = "http://localmodel:65534" if node_env == "production" else "http://localhost:65534"
 
-# Utility function to build FAISS index
-async def build_faiss_index(text: str):
+# Utility function to build FAISS index with metadata and generate summaries
+async def build_faiss_index(text: str, metadata: dict):
     global faiss_index, stored_docs
     text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=100)
     texts = text_splitter.split_text(text)
-    stored_docs = [Document(page_content=t) for t in texts]
+
+    # Generate summary for the whole document
+    summary = await generate_summary(text)
+
+    # Include summary in metadata
+    metadata["summary"] = summary
+
+    stored_docs = [Document(page_content=t, metadata=metadata) for t in texts]
     embeddings = OpenAIEmbeddings(
-    model="text-embedding-ada-002",
+        model="text-embedding-ada-002",
         openai_api_key=os.environ["OPENAI_API_KEY"],
         openai_api_base=os.environ["OPENAI_API_BASE"],
     )
     faiss_index = FAISS.from_documents(stored_docs, embeddings)
+
+# Function to generate summary using OpenAI model
+async def generate_summary(text: str) -> str:
+    prompt = "Summarize the following document:\n\n{text}"
+    template = PromptTemplate(input_variables=["text"], template=prompt)
+    llm = OpenAI(openai_api_key=os.environ["OPENAI_API_KEY"],
+                openai_api_base=os.environ["OPENAI_API_BASE"], 
+                model="gpt-4o")
+
+    chain = LLMChain(llm=llm, prompt=template)
+    summary = await chain.apredict(text=text)
+    return summary
 
 # Tools
 @server.list_tools()
@@ -66,13 +88,26 @@ async def handle_list_tools() -> list[types.Tool]:
         ),
         types.Tool(
             name="query-indexed-pdf",
-            description="Query the previously indexed PDF and return relevant text chunks.",
+            description="Query the previously indexed PDF and return relevant text chunks. Optionally, filter by file path or URL.",
             inputSchema={
                 "type": "object",
                 "properties": {
                     "query": {"type": "string"},
+                    "pdf_path": {"type": "string", "optional": True},
+                    "pdf_url": {"type": "string", "optional": True},
                 },
                 "required": ["query"],
+            },
+        ),
+        types.Tool(
+            name="full-text-summary",
+            description="Retrieve full text of a previously indexed PDF for summarization or other purposes.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "pdf_path": {"type": "string", "optional": True},
+                    "pdf_url": {"type": "string", "optional": True},
+                },
             },
         ),
     ]
@@ -91,8 +126,9 @@ async def handle_call_tool(name: str, arguments: dict | None) -> list[types.Text
             raise ValueError("Missing file path")
 
         text = extractor.extract_content(pdf_path, pages)
-        await build_faiss_index(text)
-        return [types.TextContent(type="text", text="PDF content indexed successfully.")]
+        metadata = {"pdf_path": pdf_path}
+        await build_faiss_index(text, metadata)
+        return [types.TextContent(type="text", text="PDF content indexed successfully. Summary included.")]
 
     elif name == "extract-pdf-from-url":
         pdf_url = arguments.get("pdf_url")
@@ -110,21 +146,46 @@ async def handle_call_tool(name: str, arguments: dict | None) -> list[types.Text
 
         try:
             text = extractor.extract_content(tmp_path, pages)
-            await build_faiss_index(text)
+            metadata = {"pdf_url": pdf_url}
+            await build_faiss_index(text, metadata)
         finally:
             os.remove(tmp_path)
 
-        return [types.TextContent(type="text", text="Remote PDF content indexed successfully.")]
+        return [types.TextContent(type="text", text="Remote PDF content indexed successfully. Summary included.")]
 
     elif name == "query-indexed-pdf":
         query = arguments.get("query")
+        pdf_path = arguments.get("pdf_path")
+        pdf_url = arguments.get("pdf_url")
+        
         if not query:
             raise ValueError("Missing query")
         if faiss_index is None:
             raise ValueError("No indexed PDF content available")
 
+        # Filter by pdf_path or pdf_url if provided
         docs = faiss_index.similarity_search(query, k=5)
+        if pdf_path:
+            docs = [doc for doc in docs if doc.metadata.get("pdf_path") == pdf_path]
+        if pdf_url:
+            docs = [doc for doc in docs if doc.metadata.get("pdf_url") == pdf_url]
+        
         return [types.TextContent(type="text", text="\n\n".join([doc.page_content for doc in docs]))]
+
+    elif name == "full-text-summary":
+        pdf_path = arguments.get("pdf_path")
+        pdf_url = arguments.get("pdf_url")
+        
+        if pdf_path:
+            docs = [doc for doc in stored_docs if doc.metadata.get("pdf_path") == pdf_path]
+        elif pdf_url:
+            docs = [doc for doc in stored_docs if doc.metadata.get("pdf_url") == pdf_url]
+        else:
+            raise ValueError("Either pdf_path or pdf_url must be provided.")
+
+        # Return the summary from the metadata
+        summaries = [doc.metadata.get("summary") for doc in docs if doc.metadata.get("summary")]
+        return [types.TextContent(type="text", text="\n\n".join(summaries))]
 
     else:
         raise ValueError(f"Unknown tool: {name}")
